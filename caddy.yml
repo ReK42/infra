@@ -1,0 +1,90 @@
+---
+name: caddy
+
+services:
+  caddy:
+    container_name: caddy
+    build:
+      context: .
+      dockerfile_inline: |
+        FROM docker.io/caddy:${CADDY_VERSION}-builder AS builder
+        RUN xcaddy build \
+            --with github.com/lucaslorentz/caddy-docker-proxy/v2 \
+            --with github.com/mholt/caddy-dynamicdns \
+            --with github.com/caddy-dns/rfc2136 \
+            --with github.com/caddy-dns/azure
+        FROM docker.io/caddy:${CADDY_VERSION}-alpine
+        RUN apk add nss-tools  # Required for self-signed certificates
+        COPY --from=builder /usr/bin/caddy /usr/bin/caddy
+        CMD ["caddy", "docker-proxy"]
+      args:
+        - CADDY_VERSION=${CADDY_VERSION}
+      network: host
+      entitlements:
+        - network.host
+    restart: always
+    healthcheck:
+      test: wget -qSt 1 -O - http://127.0.0.1:2019/reverse_proxy/upstreams || exit 1
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    env_file:
+      - .env.caddy
+    environment:
+      - CADDY_INGRESS_NETWORKS=caddy
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    networks:
+      - caddy
+    ports:
+      - 80:80/tcp
+      - 443:443/tcp
+    volumes:
+      - /run/podman/podman.sock:/var/run/docker.sock:ro
+      - data:/data
+
+  caddy-config:
+    container_name: caddy-config
+    image: docker.io/traefik/whoami:latest
+    restart: always
+    env_file:
+      - .env.caddy
+    networks:
+      - caddy
+    labels:
+      ###########################
+      ####  Global Settings  ####
+      ###########################
+      caddy_0.email: "${EMAIL}"
+      caddy_0.local_certs: ""  # Use self-signed
+      caddy_0.metrics.per_host:
+
+      ###########################
+      #### Reusable Snippets ####
+      ###########################
+      # Support backends using HTTPS with a self-signed certificate
+      caddy_1: (tls_skip_verify)
+      caddy_1.transport: http
+      caddy_1.transport.tls: ""
+      caddy_1.transport.tls_insecure_skip_verify: ""
+
+      ###########################
+      ####   Static Sites    ####
+      ###########################
+      # This container
+      caddy_10: "whoami.${DOMAIN}"
+      caddy_10.reverse_proxy: "{{ upstreams 80 }}"
+
+      # Portainer running on the same host
+      caddy_11: "portainer.${DOMAIN}"
+      caddy_11.reverse_proxy: "host.docker.internal:9443"
+      caddy_11.reverse_proxy.import: tls_skip_verify
+
+networks:
+  caddy:
+    external: true
+
+volumes:
+  data:
+

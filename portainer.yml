@@ -1,0 +1,50 @@
+---
+name: portainer
+
+services:
+  portainer:
+    image: docker.io/portainer/portainer-ce:${PORTAINER_VERSION}
+    container_name: portainer
+    privileged: true
+    restart: always
+    healthcheck:
+      test: wget -qSt 1 -O - --no-check-certificate https://localhost:9443/api/system/status || exit 1
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ports:
+      - 8000:8000/tcp
+      - 9443:9443/tcp
+    volumes:
+      - data:/data
+
+  portainer-agent:
+    image: docker.io/portainer/agent:${PORTAINER_VERSION}
+    container_name: portainer-agent
+    privileged: true
+    restart: always
+    depends_on:
+      portainer:
+        condition: service_healthy
+        restart: true
+    healthcheck:
+      test: wget -qSt 1 -O - --no-check-certificate https://localhost:9001/ping || exit 1
+      start_period: 10s
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    ports:
+      - 127.0.0.1:9001:9001/tcp
+    volumes:
+      - /run/podman/podman.sock:/var/run/docker.sock
+      - /var/lib/containers/storage/volumes:/var/lib/docker/volumes
+      - /:/host
+
+networks:
+  default:
+    name: portainer
+
+volumes:
+  data:
+
