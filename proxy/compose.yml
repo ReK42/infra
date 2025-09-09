@@ -11,8 +11,7 @@ services:
         RUN xcaddy build \
             --with github.com/lucaslorentz/caddy-docker-proxy/v2 \
             --with github.com/mholt/caddy-dynamicdns \
-            --with github.com/caddy-dns/rfc2136 \
-            --with github.com/caddy-dns/azure
+            --with github.com/caddy-dns/rfc2136
         FROM docker.io/caddy:${CADDY_VERSION}-alpine
         RUN apk add nss-tools  # Required for self-signed certificates
         COPY --from=builder /usr/bin/caddy /usr/bin/caddy
@@ -30,16 +29,17 @@ services:
       timeout: 10s
       retries: 3
     env_file:
-      - .env.caddy
+      - stack.env
     environment:
       - CADDY_INGRESS_NETWORKS=caddy
     extra_hosts:
       - host.docker.internal:host-gateway
     networks:
-      - caddy
+      - proxy
     ports:
       - 80:80/tcp
       - 443:443/tcp
+      - 443:443/udp
     volumes:
       - /run/podman/podman.sock:/var/run/docker.sock:ro
       - data:/data
@@ -49,9 +49,9 @@ services:
     image: docker.io/traefik/whoami:latest
     restart: always
     env_file:
-      - .env.caddy
+      - stack.env
     networks:
-      - caddy
+      - proxy
     labels:
       ###########################
       ####  Global Settings  ####
@@ -82,9 +82,8 @@ services:
       caddy_11.reverse_proxy.import: tls_skip_verify
 
 networks:
-  caddy:
+  proxy:
     external: true
 
 volumes:
   data:
-

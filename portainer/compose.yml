@@ -7,7 +7,7 @@ services:
     container_name: portainer
     privileged: true
     restart: always
-    healthcheck:
+    healthcheck:  # TODO: These break after a while, figure out cause
       test: wget -qSt 1 -O - --no-check-certificate https://localhost:9443/api/system/status || exit 1
       start_period: 10s
       interval: 30s
@@ -15,7 +15,7 @@ services:
       retries: 3
     ports:
       - 8000:8000/tcp
-      - 9443:9443/tcp
+      - 9443:9443/tcp  # Exposed as a backup in case reverse proxy is down
     volumes:
       - data:/data
 
@@ -28,7 +28,7 @@ services:
       portainer:
         condition: service_healthy
         restart: true
-    healthcheck:
+    healthcheck:  # TODO: These break after a while, figure out cause
       test: wget -qSt 1 -O - --no-check-certificate https://localhost:9001/ping || exit 1
       start_period: 10s
       interval: 30s
@@ -47,4 +47,3 @@ networks:
 
 volumes:
   data:
-
