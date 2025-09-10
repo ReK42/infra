@@ -138,6 +138,22 @@ services:
       caddy: "oxidized.${DOMAIN}"
       caddy.reverse_proxy: "{{ upstreams 8888 }}"
 
+  netronome:
+    container_name: netronome
+    image: ghcr.io/autobrr/netronome:${NETRONOME_VERSION}
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW
+    env_file:
+      - stack.env
+    networks:
+      - proxy
+    volumes:
+      - netronome_data:/data
+    labels:  # TODO: Authentication
+      caddy: "netronome.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 7575 }}"
+
 networks:
   librenms:
   proxy:
