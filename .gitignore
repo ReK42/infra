@@ -1,0 +1,6 @@
+# Environment variable files
+.env
+stack.env
+
+# Oxidized SSH keys
+monitoring/oxidized_ssh/

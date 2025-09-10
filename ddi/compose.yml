@@ -50,19 +50,22 @@ services:
       - dns
     volumes:
       - pdns_upload:/opt/powerdns-admin/upload
+    labels:  # TODO: Authentication
+      caddy: "pdns.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 8080 }}"
 
   pdns-mariadb:
     container_name: pdns-mariadb
-    image: docker.io/_/mariadb:${MARIADB_VERSION}
+    image: docker.io/mariadb:${MARIADB_VERSION}
     restart: unless-stopped
-    env_file:
-      - stack.env
     healthcheck:
       test: healthcheck.sh --connect --innodb_initialized
       start_period: 10s
       interval: 10s
       timeout: 5s
       retries: 3
+    env_file:
+      - stack.env
     networks:
       - dns
     volumes:
@@ -137,7 +140,7 @@ services:
       - sh
       - -c
       - valkey-server --appendonly yes --requirepass $${REDIS_PASSWORD}
-    healthcheck: &redis-healthcheck
+    healthcheck:
       test: '[ $$(valkey-cli --pass "$${REDIS_PASSWORD}" ping) = ''PONG'' ]'
       start_period: 5s
       timeout: 3s

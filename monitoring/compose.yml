@@ -1,0 +1,152 @@
+---
+name: ddi
+
+services:
+  librenms: &librenms  # TODO: Health check
+    container_name: librenms
+    image: docker.io/librenms/librenms:${LIBRENMS_VERSION}
+    restart: unless-stopped
+    depends_on:
+      librenms-mariadb:
+        condition: service_healthy
+      librenms-redis:
+        condition: service_healthy
+      librenms-msmtpd:
+        condition: service_healthy
+      librenms-rrdcached:
+        condition: service_healthy
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+      - proxy
+    volumes:
+      - librenms_data:/data
+    labels:  # TODO: Authentication
+      caddy: "librenms.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 8000 }}"
+
+  librenms-dispatcher:
+    <<: *librenms
+    environment:
+      - DISPATCHER_NODE_ID=dispatcher1
+      - SIDECAR_DISPATCHER=1
+    networks:
+      - librenms
+
+  librenms-syslogng:
+    <<: *librenms
+    environment:
+      - SIDECAR_SYSLOGNG=1
+    networks:
+      - librenms
+    ports:
+      - 514:514/tcp
+      - 514:514/udp
+      - 6514:6514/tcp
+      - 6514:6514/udp
+
+  librenms-snmptrapd:
+    <<: *librenms
+    environment:
+      - SIDECAR_SNMPTRAPD=1
+    networks:
+      - librenms
+    ports:
+      - 162:162/tcp
+      - 162:162/udp
+      - 10162:10162/tcp
+      - 10162:10162/udp
+
+  librenms-mariadb:
+    container_name: librenms-mariadb
+    image: docker.io/mariadb:${MARIADB_VERSION}
+    restart: unless-stopped
+    command:
+      - mysqld
+      - --innodb-file-per-table=1
+      - --lower-case-table-names=0
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: healthcheck.sh --connect --innodb_initialized
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+    volumes:
+      - librenms_mariadb:/var/lib/mysql
+
+  librenms-redis:
+    container_name: librenms-redis
+    image: docker.io/valkey/valkey:${REDIS_VERSION}
+    restart: unless-stopped
+    healthcheck:
+      test: '[ $$(valkey-cli ping) = ''PONG'' ]'
+      start_period: 5s
+      timeout: 3s
+      interval: 1s
+      retries: 5
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+    volumes:
+      librenms_redis:/data
+
+  librenms-msmtpd:  # TODO: Health check
+    container_name: librenms_msmtpd
+    image: ghcr.io/crazy-max/msmtpd:${MSMTPD_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+
+  librenms-rrdcached:  # TODO: Health check
+    container_name: librenms-rrdcached
+    image: ghcr.io/crazy-max/rrdcached:${RRDCACHED_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+    volumes:
+      - librenms_rrdcached_data:/data/db
+      - librenms_rrdcached_journal:/data/journal
+
+  oxidized:
+    container_name: oxidized
+    image: docker.io/oxidized/oxidized:${OXIDIZED_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    networks:
+      - librenms
+      - proxy
+    volumes:
+      - oxidized_config:/home/oxidized/.config/oxidized
+      - ./oxidized_ssh:/home/oxidized/.ssh
+    labels:  # TODO: Authentication
+      caddy: "oxidized.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 8888 }}"
+
+networks:
+  librenms:
+  proxy:
+    external: true
+
+volumes:
+  librenms_data:
+  librenms_mariadb:
+  librenms_redis:
+  librenms_rrdcached_data:
+  librenms_rrdcached_journal:
+  oxidized_config:
