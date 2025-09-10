@@ -6,21 +6,12 @@ services:
     container_name: caddy
     build:
       context: .
-      dockerfile_inline: |
-        FROM docker.io/caddy:${CADDY_VERSION}-builder AS builder
-        RUN xcaddy build \
-            --with github.com/lucaslorentz/caddy-docker-proxy/v2 \
-            --with github.com/mholt/caddy-dynamicdns \
-            --with github.com/caddy-dns/rfc2136
-        FROM docker.io/caddy:${CADDY_VERSION}-alpine
-        RUN apk add nss-tools  # Required for self-signed certificates
-        COPY --from=builder /usr/bin/caddy /usr/bin/caddy
-        CMD ["caddy", "docker-proxy"]
-      args:
-        - CADDY_VERSION=${CADDY_VERSION}
       network: host
       entitlements:
         - network.host
+      dockerfile: ./caddy.Dockerfile
+      args:
+        - CADDY_VERSION=${CADDY_VERSION}
     restart: always
     healthcheck:
       test: wget -qSt 1 -O - http://127.0.0.1:2019/reverse_proxy/upstreams || exit 1
@@ -46,7 +37,7 @@ services:
 
   caddy-config:
     container_name: caddy-config
-    image: docker.io/traefik/whoami:latest
+    image: docker.io/traefik/whoami:${TRAEFIK_VERSION}
     restart: always
     env_file:
       - stack.env
