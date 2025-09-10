@@ -3,8 +3,8 @@ name: portainer
 
 services:
   portainer:
-    image: docker.io/portainer/portainer-ce:${PORTAINER_VERSION}
     container_name: portainer
+    image: docker.io/portainer/portainer-ce:${PORTAINER_VERSION}
     privileged: true
     restart: always
     healthcheck:  # TODO: These break after a while, figure out cause
@@ -20,8 +20,8 @@ services:
       - data:/data
 
   portainer-agent:
-    image: docker.io/portainer/agent:${PORTAINER_VERSION}
     container_name: portainer-agent
+    image: docker.io/portainer/agent:${PORTAINER_VERSION}
     privileged: true
     restart: always
     depends_on:

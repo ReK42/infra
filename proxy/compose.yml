@@ -42,7 +42,7 @@ services:
       - 443:443/udp
     volumes:
       - /run/podman/podman.sock:/var/run/docker.sock:ro
-      - data:/data
+      - caddy_data:/data
 
   caddy-config:
     container_name: caddy-config
@@ -81,9 +81,45 @@ services:
       caddy_11.reverse_proxy: "host.docker.internal:9443"
       caddy_11.reverse_proxy.import: tls_skip_verify
 
+  heimdall:  # TODO: Health check
+    container_name: heimdall
+    image: lscr.io/linuxserver/heimdall:${HEIMDALL_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    volumes:
+      - heimdall_config:/config
+    labels:  # TODO: Authentication
+      caddy: "infra.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 80 }}"
+    # TODO: App list?
+    #   - AdGuardHome: Enhanced
+    #   - Authelia: Foundation
+    #   - Authentik: Enhanced
+    #   - Bitwarden: Foundation
+    #   - Cloudflare: Foundation
+    #   - Cockpit: Foundation
+    #   - GitHub: Foundation
+    #   - Heimdall: Enhanced
+    #   - Keycloak: Foundation
+    #   - LibreNMS: Foundation
+    #   - Netbox: Foundation
+    #   - Netdata: Enhanced
+    #   - Passbolt: Foundation
+    #   - Portainer: Enhanced
+    #   - PowerDNS: Foundation
+    #   - Prometheus: Foundation
+    #   - Proxmox: Enhanced
+    #   - SpeedtestTracker: Enhanced
+    #   - Tailscale: Foundation
+    #   - Traefik: Enhanced
+    #   - UniFi: Enhanced
+    #   - Vaultwarden: Foundation
+
 networks:
   proxy:
     external: true
 
 volumes:
-  data:
+  caddy_data:
+  heimdall_config:
