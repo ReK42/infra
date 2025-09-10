@@ -1,0 +1,95 @@
+---
+name: ddi
+
+services:
+  netbox: &netbox
+    container_name: netbox
+    image: lscr.io/linuxserver/netbox:${NETBOX_VERSION}
+    restart: unless-stopped
+    depends_on:
+      netbox-postgres:
+        condition: service_healthy
+      netbox-redis:
+        condition: service_healthy
+    healthcheck:
+      test: curl -f http://localhost:8080/login/ || exit 1
+      start_period: 90s
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    env_file:
+      - stack.env
+    networks:
+      - netbox
+      - proxy
+    volumes:
+      - netbox_config:/config
+    labels:  # TODO: Authentication
+      caddy: "netbox.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 8000 }}"
+
+  netbox-worker:
+    <<: *netbox
+    depends_on:
+      netbox:
+        condition: service_healthy
+    command:
+      - /opt/netbox/venv/bin/python
+      - /opt/netbox/netbox/manage.py
+      - rqworker
+    healthcheck:
+      test: ps -aux | grep -v grep | grep -q rqworker || exit 1
+      start_period: 30s
+      interval: 15s
+      timeout: 3s
+      retries: 3
+    networks:
+      - netbox
+
+  netbox-postgres:
+    container_name: netbox-postgres
+    image: docker.io/postgres:${POSTGRES_VERSION}
+    restart: unless-stopped
+    healthcheck:
+      test: pg_isready -q -t 2 -d $${DB_NAME} -U $${DB_USER}
+      start_period: 30s
+      interval: 10s
+      timeout: 30s
+      retries: 5
+    env_file:
+      - stack.env
+    networks:
+      - netbox
+    volumes:
+      - netbox_data:/var/lib/postgresql/data
+
+  netbox-redis:
+    container_name: netbox-redis
+    image: docker.io/valkey/valkey:${REDIS_VERSION}
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - valkey-server --appendonly yes --requirepass $${REDIS_PASSWORD}
+    healthcheck: &redis-healthcheck
+      test: '[ $$(valkey-cli --pass "$${REDIS_PASSWORD}" ping) = ''PONG'' ]'
+      start_period: 5s
+      timeout: 3s
+      interval: 1s
+      retries: 5
+    env_file:
+      - stack.env
+    networks:
+      - netbox
+    volumes:
+      netbox_redis:/data
+
+networks:
+  netbox:
+  proxy:
+    external: true
+
+volumes:
+  netbox_config:
+  netbox_data:
+  netbox_redis:
