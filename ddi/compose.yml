@@ -2,6 +2,72 @@
 name: ddi
 
 services:
+  adguardhome:
+    container_name: adguardhome
+    image: docker.io/adguard/adguardhome:${ADGUARDHOME_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    ports:
+      - 53:53/tcp      # DNS
+      - 53:53/udp      # DNS
+      - 853:853/tcp    # DNS-over-TLS
+      - 853:853/udp    # DNS-over-QUIC
+      - 5443:5443/tcp  # DNSCrypt
+      - 5443:5443/udp  # DNSCrypt
+    networks:
+      - dns
+      - proxy
+    volumes:
+      - adguardhome_config:/opt/adguardhome/conf
+      - adguardhome_work:/opt/adguardhome/work
+    labels:  # TODO: Authentication
+      caddy: "adguardhome.${DOMAIN}"
+      caddy.reverse_proxy: "{{ upstreams 3000 }}"
+
+  pdns-auth:
+    container_name: pdns-auth
+    image: docker.io/pschiffe/pdns-mysql:${PDNS_AUTH_VERSION}
+    restart: unless-stopped
+    depends_on:
+      pdns-mariadb:
+        condition: service_healthy
+    env_file:
+      - stack.env
+    networks:
+      - dns
+
+  pdns-admin:
+    container_name: pdns-admin
+    image: docker.io/pschiffe/pdns-admin:${PDNS_ADMIN_VERSION}
+    restart: unless-stopped
+    depends_on:
+      pdns-mariadb:
+        condition: service_healthy
+    env_file:
+      - stack.env
+    networks:
+      - dns
+    volumes:
+      - pdns_upload:/opt/powerdns-admin/upload
+
+  pdns-mariadb:
+    container_name: pdns-mariadb
+    image: docker.io/_/mariadb:${MARIADB_VERSION}
+    restart: unless-stopped
+    env_file:
+      - stack.env
+    healthcheck:
+      test: healthcheck.sh --connect --innodb_initialized
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
+    networks:
+      - dns
+    volumes:
+      - pdns_data:/var/lib/mysql:Z
+
   netbox: &netbox
     container_name: netbox
     image: lscr.io/linuxserver/netbox:${NETBOX_VERSION}
@@ -85,11 +151,16 @@ services:
       netbox_redis:/data
 
 networks:
+  dns:
   netbox:
   proxy:
     external: true
 
 volumes:
+  adguardhome_config:
+  adguardhome_work:
+  pdns_data:
+  pdns_upload:
   netbox_config:
   netbox_data:
   netbox_redis:
